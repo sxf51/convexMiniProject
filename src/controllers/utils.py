@@ -16,11 +16,17 @@ def condense_qp(
     x_ref: np.ndarray,
     u_min: np.ndarray | None = None,
     u_max: np.ndarray | None = None,
+    C: np.ndarray | None = None,
+    d_min: np.ndarray | None = None,
+    d_max: np.ndarray | None = None,
 ) -> dict[str, Any]:
-    """Condense the MPC problem into a box-constrained QP in ``z = [u_0; ...; u_{N-1}]``.
+    """Condense the MPC problem into a QP in ``z = [u_0; ...; u_{N-1}]``.
 
     ``x_ref`` has shape ``(N, nx)`` and contains the reference states for time steps
     ``1..N``. The current state ``x0`` is fixed and is not a decision variable.
+
+    Optional state constraints ``d_min <= C x <= d_max`` are converted to ``G z <= g``.
+    ``C`` has shape ``(N, nx)`` and ``d_min``/``d_max`` have shape ``(N,)``.
     """
     A = np.asarray(A, dtype=float)
     B = np.asarray(B, dtype=float)
@@ -66,7 +72,27 @@ def condense_qp(
     if u_max is not None:
         ub = np.tile(np.asarray(u_max, dtype=float).reshape(-1), horizon)
 
-    return {"H": H, "h": h, "lb": lb, "ub": ub}
+    G = None
+    g = None
+    if C is not None:
+        C = np.asarray(C, dtype=float)
+        d_min = np.asarray(d_min, dtype=float).reshape(-1)
+        d_max = np.asarray(d_max, dtype=float).reshape(-1)
+        if C.shape != (horizon, nx):
+            msg = f"C must have shape ({horizon}, {nx}), got {C.shape}"
+            raise ValueError(msg)
+
+        c_bar = np.zeros((horizon, horizon * nx))
+        for i in range(horizon):
+            c_bar[i, i * nx : (i + 1) * nx] = C[i]
+
+        c_dyn = c_bar @ b_bar
+        c_const = c_bar @ (a_bar @ x0)
+
+        G = np.vstack([c_dyn, -c_dyn])
+        g = np.concatenate([d_max - c_const, -(d_min - c_const)])
+
+    return {"H": H, "h": h, "lb": lb, "ub": ub, "G": G, "g": g}
 
 
 def solve_box_qp_pgd(
@@ -108,6 +134,71 @@ def solve_box_qp_pgd(
             break
         z = z_next
     return z
+
+
+def solve_qp_ineq_pgd(
+    H: np.ndarray,
+    h: np.ndarray,
+    G: np.ndarray | None = None,
+    g: np.ndarray | None = None,
+    lb: np.ndarray | None = None,
+    ub: np.ndarray | None = None,
+    x_init: np.ndarray | None = None,
+    max_iter: int = 20_000,
+    tol: float = 1e-8,
+    step: float | None = None,
+) -> np.ndarray:
+    """Solve ``min 0.5 z^T H z + h^T z`` with ``G z <= g`` and box constraints.
+
+    This is a projected-gradient ascent on the dual problem, which keeps the projection
+    trivial (``lambda >= 0``). Box constraints are appended to ``G z <= g`` before the
+    dual is formed. ``x_init`` is accepted for interface compatibility but ignored; the
+    dual multipliers always start at zero.
+    """
+    del x_init
+
+    H = np.asarray(H, dtype=float)
+    h = np.asarray(h, dtype=float).reshape(-1)
+    n = H.shape[0]
+
+    rows_G: list[np.ndarray] = []
+    rows_g: list[np.ndarray] = []
+    if G is not None and G.size:
+        rows_G.append(np.asarray(G, dtype=float))
+        rows_g.append(np.asarray(g, dtype=float).reshape(-1))
+    if lb is not None:
+        lb = np.asarray(lb, dtype=float)
+        rows_G.append(-np.eye(n))
+        rows_g.append(-lb)
+    if ub is not None:
+        ub = np.asarray(ub, dtype=float)
+        rows_G.append(np.eye(n))
+        rows_g.append(ub)
+
+    if not rows_G:
+        return solve_box_qp_pgd(H, h, lb, ub, max_iter=max_iter, tol=tol, step=step)
+
+    G_aug = np.vstack(rows_G)
+    g_aug = np.concatenate(rows_g)
+
+    H_inv = np.linalg.inv(H)
+    dual_hessian = G_aug @ H_inv @ G_aug.T
+    largest_eig = float(np.linalg.eigvalsh(dual_hessian).max())
+
+    if step is None:
+        step = 1.0 / largest_eig if largest_eig > 1e-12 else 1.0
+
+    lam = np.zeros(G_aug.shape[0])
+    for _ in range(max_iter):
+        z = -H_inv @ (h + G_aug.T @ lam)
+        gradient = G_aug @ z - g_aug
+        lam_next = np.maximum(0.0, lam + step * gradient)
+        if np.linalg.norm(lam_next - lam) <= tol:
+            lam = lam_next
+            break
+        lam = lam_next
+
+    return -H_inv @ (h + G_aug.T @ lam)
 
 
 def solve_qp_gurobi(

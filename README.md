@@ -51,7 +51,11 @@ The full specification is available in
 │   ├── models/
 │   │   └── double_integrator.py # Double integrator model
 │   └── simulation/
-│       └── simulator.py        # Simulation environment
+│       ├── simulator.py        # Simulation environment
+│       └── track.py            # Track generation and boundary constraints
+├── scripts/
+│   ├── task2_question3.py      # Port of Task2_Question3.m
+│   └── task3_question4.py      # Port of Task3_Question4.m
 ├── tests/                     # Unit tests for the model, controller, and simulator
 ├── main.py                    # Entry point and demo
 ├── pyproject.toml             # Project metadata and dependencies
@@ -81,6 +85,7 @@ Runtime dependencies are declared in `pyproject.toml`:
 - [CasADi](https://web.casadi.org/) - algorithmic differentiation and nonlinear
   optimisation.
 - [Gurobi](https://www.gurobi.com/) - commercial quadratic programming solver.
+- [Matplotlib](https://matplotlib.org/) - trajectory plots used by the demo scripts.
 - [NumPy](https://numpy.org/) - array operations used by the model, controller, and
   simulation.
 
@@ -90,8 +95,25 @@ Runtime dependencies are declared in `pyproject.toml`:
 
 The built-in projected-gradient solver in
 [`src/controllers/utils.py`](src/controllers/utils.py) does not require a Gurobi license.
-Optional trajectory plots require `matplotlib`, which can be installed with
-`uv add matplotlib`.
+
+## Running the Provided Task Scripts
+
+The MATLAB examples in `docs/` have been ported to Python:
+
+- [`scripts/task2_question3.py`](scripts/task2_question3.py) - path following with input
+  constraints only (Task 2, Question 3).
+- [`scripts/task3_question4.py`](scripts/task3_question4.py) - path following with input
+  and boundary-crossing state constraints (Task 3, Question 4).
+
+Run them with:
+
+```bash
+uv run python scripts/task2_question3.py
+uv run python scripts/task3_question4.py
+```
+
+Both scripts generate the same closed track as the MATLAB `road`/`roadBoundaries`
+example, solve the MPC problem online, and plot the resulting trajectory.
 
 ## Development
 

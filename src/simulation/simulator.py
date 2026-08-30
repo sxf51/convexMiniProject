@@ -28,32 +28,41 @@ class Simulator:
         x0: np.ndarray,
         reference: np.ndarray,
         n_steps: int | None = None,
+        wrap: bool = False,
+        state_constraints: tuple[np.ndarray, np.ndarray, np.ndarray] | None = None,
     ) -> tuple[np.ndarray, np.ndarray]:
         """Simulate the closed-loop system.
 
         Returns ``(states, controls)`` where ``states`` has one more row than
         ``controls`` (the initial state plus one row per applied input).
+        ``wrap`` treats ``reference`` (and ``state_constraints``) as a closed loop.
         """
         reference = np.asarray(reference, dtype=float)
         nx = reference.shape[1]
         horizon = self.controller.horizon
 
         if n_steps is None:
-            n_steps = max(0, reference.shape[0] - horizon)
+            n_steps = reference.shape[0] if wrap else max(0, reference.shape[0] - horizon)
 
         states = [np.asarray(x0, dtype=float).reshape(-1)]
         controls: list[np.ndarray] = []
 
         for step in range(n_steps):
             current = states[-1]
-            end = min(step + horizon + 1, reference.shape[0])
-            window = reference[step:end]
+            indices = np.arange(step, step + horizon + 1)
+            if wrap:
+                indices = indices % reference.shape[0]
+            else:
+                indices = np.clip(indices, 0, reference.shape[0] - 1)
 
-            if window.shape[0] < horizon + 1:
-                padding = np.repeat(window[-1:], horizon + 1 - window.shape[0], axis=0)
-                window = np.vstack([window, padding])
+            window = reference[indices]
 
-            u = self.controller.control(current, window)
+            constraints = None
+            if state_constraints is not None:
+                C, d_min, d_max = state_constraints
+                constraints = (C[indices], d_min[indices], d_max[indices])
+
+            u = self.controller.control(current, window, constraints)
 
             w = self.rng.normal(0.0, self.noise_std, size=nx) if self.noise_std > 0 else None
 
