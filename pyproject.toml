@@ -1,0 +1,28 @@
+[project]
+name = "convexminiproject"
+version = "0.1.0"
+description = "MPC-based path planning and following for autonomous vehicles"
+readme = "README.md"
+requires-python = ">=3.13"
+dependencies = [
+    "casadi>=3.8.0",
+    "gurobipy>=13.0.3",
+]
+
+[dependency-groups]
+dev = [
+    "pytest>=8.0.0",
+    "ruff>=0.6.0",
+]
+
+[tool.ruff]
+line-length = 100
+target-version = "py313"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B", "SIM"]
+
+[tool.pytest.ini_options]
+addopts = "-q"
+testpaths = ["tests"]
+pythonpath = ["."]
