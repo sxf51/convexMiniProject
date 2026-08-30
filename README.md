@@ -44,9 +44,16 @@ The full specification is available in
 ├── .github/workflows/ci.yml   # GitHub Actions CI pipeline
 ├── docs/
 │   └── Project_part_1-1.pdf   # Assignment specification
-├── tests/
-│   └── test_main.py           # Smoke tests
-├── main.py                    # Entry point
+├── src/
+│   ├── controllers/
+│   │   ├── mpc.py              # MPC controller implementation
+│   │   └── utils.py            # Helper functions for MPC
+│   ├── models/
+│   │   └── double_integrator.py # Double integrator model
+│   └── simulation/
+│       └── simulator.py        # Simulation environment
+├── tests/                     # Unit tests for the model, controller, and simulator
+├── main.py                    # Entry point and demo
 ├── pyproject.toml             # Project metadata and dependencies
 ├── uv.lock                    # Locked dependency versions
 └── README.md
@@ -74,10 +81,17 @@ Runtime dependencies are declared in `pyproject.toml`:
 - [CasADi](https://web.casadi.org/) - algorithmic differentiation and nonlinear
   optimisation.
 - [Gurobi](https://www.gurobi.com/) - commercial quadratic programming solver.
+- [NumPy](https://numpy.org/) - array operations used by the model, controller, and
+  simulation.
 
 > **Note on Gurobi:** `gurobipy` installs without a license, but solving models requires a
 > valid Gurobi or Web License Service (WLS) license. The CI pipeline runs only smoke tests
 > and does not invoke Gurobi.
+
+The built-in projected-gradient solver in
+[`src/controllers/utils.py`](src/controllers/utils.py) does not require a Gurobi license.
+Optional trajectory plots require `matplotlib`, which can be installed with
+`uv add matplotlib`.
 
 ## Development
 

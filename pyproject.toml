@@ -7,6 +7,7 @@ requires-python = ">=3.13"
 dependencies = [
     "casadi>=3.8.0",
     "gurobipy>=13.0.3",
+    "numpy>=2.0.0",
 ]
 
 [dependency-groups]
@@ -22,7 +23,10 @@ target-version = "py313"
 [tool.ruff.lint]
 select = ["E", "F", "I", "UP", "B", "SIM"]
 
+[tool.ruff.lint.isort]
+known-first-party = ["controllers", "models", "simulation"]
+
 [tool.pytest.ini_options]
 addopts = "-q"
 testpaths = ["tests"]
-pythonpath = ["."]
+pythonpath = ["src", "."]
